@@ -11,3 +11,6 @@ qemu:
         -drive if=pflash,format=raw,readonly=on,file=OVMF_CODE.4m.fd \
         -drive if=pflash,format=raw,readonly=on,file=OVMF_VARS.4m.fd \
         -drive format=raw,file=fat:rw:esp
+
+watch:
+    watchexec -r -- just qemu
