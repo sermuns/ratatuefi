@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+log = "0.4"
+uefi = { version = "0.38", features = ["panic_handler", "logger"] }
