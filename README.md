@@ -1,11 +1,12 @@
 <div align="center">
 
-# `ratatuefi`
+![ratatuefi](./media/banner.svg)
 
-https://github.com/user-attachments/assets/7f05d64a-27ca-4deb-954a-3c2c53765832
+Zero-bloat Ratatui in UEFI, no OS
+
+<https://github.com/user-attachments/assets/7f05d64a-27ca-4deb-954a-3c2c53765832>
 
 </div>
-
 
 ## Running in QEMU
 
