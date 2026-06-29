@@ -1,8 +1,7 @@
 <div align="center">
 
 ![ratatuefi](./media/banner.svg)
-
-Zero-bloat Ratatui in UEFI, no OS
+_Zero-bloat Ratatui in UEFI, no OS_
 
 <https://github.com/user-attachments/assets/7f05d64a-27ca-4deb-954a-3c2c53765832>
 
