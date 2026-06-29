@@ -1,6 +1,11 @@
+<div align="center">
+
 # `ratatuefi`
 
-_zero bloat, bare-metal Ratatui_
+https://github.com/user-attachments/assets/7f05d64a-27ca-4deb-954a-3c2c53765832
+
+</div>
+
 
 ## Running in QEMU
 
@@ -25,6 +30,10 @@ and then
 ```sh
 just qemu
 ```
+
+## Running on a physical machine
+
+TBD..
 
 ## Ideas for improving
 
