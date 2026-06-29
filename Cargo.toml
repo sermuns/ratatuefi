@@ -5,4 +5,12 @@ edition = "2024"
 
 [dependencies]
 log = "0.4"
-uefi = { version = "0.38", features = ["panic_handler", "logger"] }
+ratatui = {
+  version = "0.30",
+  default-features = false,
+}
+thiserror = { version = "2", default-features = false }
+uefi = {
+  version = "0.38",
+  features = ["alloc", "global_allocator", "logger", "panic_handler", "qemu"]
+}
