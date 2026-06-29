@@ -4,7 +4,11 @@
 use core::time::Duration;
 
 use log::info;
-use ratatui::{prelude::*, widgets::RatatuiMascot};
+use ratatui::{
+    prelude::*,
+    text::ToLine,
+    widgets::{RatatuiLogo, RatatuiMascot},
+};
 use uefi::prelude::*;
 
 mod backend;
@@ -30,9 +34,18 @@ fn main() -> Status {
 }
 
 fn draw(frame: &mut Frame) {
-    let area = frame.area();
+    let [top_area, bottom_area] = frame.area().layout(&Layout::vertical([
+        Constraint::Fill(2),
+        Constraint::Fill(1),
+    ]));
+
     frame.render_widget(
         RatatuiMascot::default(),
-        area.centered(Constraint::Length(40), Constraint::Length(30)),
+        top_area.centered_horizontally(Constraint::Length(34)),
+    );
+
+    frame.render_widget(
+        "finally, bloat-free Ratatui!".to_line().centered(),
+        bottom_area,
     );
 }
