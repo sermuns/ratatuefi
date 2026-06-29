@@ -43,7 +43,7 @@ fn ratatui_fg_color_to_uefi_color(color: Color) -> UefiColor {
         Color::Indexed(232) => UefiColor::Blue,
         Color::Indexed(237) => UefiColor::LightGray,
         Color::Indexed(248) => UefiColor::DarkGray,
-        other => panic!("{:?}", other),
+        other => panic!("encountered unsupported color {:?}", other),
     }
 }
 
