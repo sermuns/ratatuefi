@@ -33,7 +33,39 @@ just qemu
 
 ## Running on a physical machine
 
-TBD..
+> from <https://rust-osdev.github.io/uefi-rs/tutorial/hardware.html>
+
+Connect a USB drive. Follow steps below.
+
+```sh
+# Create the GPT, create a 9MB partition starting at 1MB, and set the
+# partition type to EFI System.
+sgdisk \
+    --clear \
+    --new=1:1M:10M \
+    --typecode=1:C12A7328-F81F-11D2-BA4B-00A0C93EC93B \
+    /path/to/disk
+
+# Format the partition as FAT.
+mkfs.fat /path/to/disk_partition
+
+# Mount the partition.
+mount --mkdir /path/to/disk_partition /mnt/ratatuefi
+
+# Create the boot directory.
+mkdir -p /mnt/ratatuefi/EFI/BOOT
+
+# Copy in the boot executable.
+cp $CARGO_TARGET_DIR/x86_64-unknown-uefi/debug/ratatuefi.efi /mnt/ratatuefi/EFI/BOOT/BOOTX64.EFI
+
+# Eject the USB drive
+eject /path/to/disk
+```
+
+> [!IMPORTANT]
+> disable secure boot on machine before trying to boot
+
+try booting it!
 
 ## Ideas for improving
 
