@@ -11,27 +11,36 @@ _Zero-bloat Ratatui in UEFI, no OS_
 
 ## Running in QEMU
 
-```sh
-pacman -S qemu-system-x86_64 edk2-ovmf
-```
+1. Install packages:
 
-(optionally some graphic backend, but you can also VNC into the VM)
+    ```sh
+    pacman -S qemu-system-x86_64 edk2-ovmf
+    ```
 
-```sh
-pacman -S qemu-ui-sdl
-```
+   (optionally, install some graphics backend, but you can also VNC into the VM)
 
-then
+    ```sh
+    pacman -S qemu-ui-sdl
+    ```
 
-```sh
-just create-virtual-uefi-layout
-```
+2. Create virtual EFI layout
 
-and then
+    ```sh
+    just create-virtual-uefi-layout
+    ```
 
-```sh
-just qemu
-```
+   then build and symlink the `.efi` in:  
+   (`<EFI>` is something like `./target/x86_64-unknown-uefi/debug/<PACKAGE-NAME>.efi`)
+
+    ```sh
+    ln -sf <EFI> esp/efi/boot/bootx64.efi
+    ```
+
+3. Start QEMU
+
+    ```sh
+    just qemu
+    ```
 
 ## Running on a physical machine
 
@@ -71,7 +80,14 @@ try booting it!
 
 ## Ideas for improving
 
+<s>
+
 it is slow as hell to draw. could possibly be improved by
 
 - adding a buffer, and rendering full lines? currently we are rawdoggin character-for-character.
 - switching to manual VGA graphics (use mousefood?)
+
+</s>
+
+was fixed by using `-display sdl,gl=on`!
+somehow running without OpenGL makes it really slow!
