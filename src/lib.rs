@@ -116,7 +116,7 @@ impl Backend for UefiBackend<'_> {
             // background only allowed to be one of the first 8 colors:
             // https://docs.rs/uefi/latest/uefi/proto/console/text/struct.Output.html#method.set_color
             // https://docs.rs/uefi/latest/uefi/proto/console/text/enum.Color.html
-            let background = UefiColor::Brown;
+            let background = UefiColor::Blue;
             self.output.set_color(foreground, background).unwrap();
 
             self.output.write_str(cell.symbol()).unwrap();
