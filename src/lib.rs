@@ -26,6 +26,7 @@ impl<'a> UefiBackend<'a> {
 pub enum UefiBackendError {}
 
 fn ratatui_fg_color_to_uefi_color(color: Color) -> UefiColor {
+    // TODO: very unfinished
     match color {
         Color::Reset => UefiColor::White,
         Color::Black => UefiColor::White,
