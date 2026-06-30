@@ -6,7 +6,7 @@ create-virtual-uefi-layout:
     ln -sf $CARGO_TARGET_DIR/x86_64-unknown-uefi/debug/ratatuefi.efi esp/efi/boot/bootx64.efi
 
 qemu:
-    cargo build
+    cargo build --workspace
     qemu-system-x86_64 -enable-kvm \
         -display sdl,gl=on \
         -drive if=pflash,format=raw,readonly=on,file=OVMF_CODE.4m.fd \
