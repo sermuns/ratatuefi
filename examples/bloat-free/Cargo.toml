@@ -4,7 +4,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-log = "0.4"
+log.workspace = true
 ratatuefi.workspace = true
 ratatui.workspace = true
-uefi = "0.38"
+uefi.workspace = true

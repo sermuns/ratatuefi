@@ -11,19 +11,22 @@ members = ["examples/*"]
 edition = "2024"
 
 [workspace.dependencies]
+anyhow = { version = "1.0", default-features = false }
+log = "0.4"
 ratatuefi.path = "."
 ratatui = {
   version = "0.30",
   default-features = false,
   features = ["layout-cache"]
 }
-
-[dependencies]
-log = "0.4"
-ratatui-core = "0.1"
-thiserror = { version = "2", default-features = false }
 uefi = {
   version = "0.38",
   # TODO: maybe remove `qemu` for physical machines?
   features = ["alloc", "global_allocator", "logger", "panic_handler", "qemu"]
 }
+
+[dependencies]
+log.workspace = true
+uefi.workspace = true
+ratatui-core = "0.1"
+thiserror = { version = "2", default-features = false }
