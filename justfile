@@ -8,6 +8,7 @@ create-virtual-uefi-layout:
 qemu:
     cargo build
     qemu-system-x86_64 -enable-kvm \
+        -display sdl,gl=on \
         -drive if=pflash,format=raw,readonly=on,file=OVMF_CODE.4m.fd \
         -drive if=pflash,format=raw,readonly=on,file=OVMF_VARS.4m.fd \
         -drive format=raw,file=fat:rw:esp
