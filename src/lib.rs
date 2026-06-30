@@ -1,6 +1,13 @@
+#![no_std]
+
 use core::fmt::Write;
 
-use ratatui::{backend::WindowSize, prelude::*};
+use ratatui_core::{
+    backend::{self, Backend, WindowSize},
+    buffer,
+    layout::{Position, Size},
+    style::Color,
+};
 use thiserror::Error;
 use uefi::proto::console::text::Color as UefiColor;
 
@@ -14,6 +21,7 @@ impl<'a> UefiBackend<'a> {
     }
 }
 
+// TODO:
 #[derive(Debug, Error)]
 pub enum UefiBackendError {}
 

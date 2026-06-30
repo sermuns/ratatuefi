@@ -1,19 +1,12 @@
-#![no_main]
 #![no_std]
+#![no_main]
 
 use core::time::Duration;
 
 use log::info;
-use ratatui::{
-    prelude::*,
-    text::ToLine,
-    widgets::{RatatuiLogo, RatatuiMascot},
-};
+use ratatuefi::UefiBackend;
+use ratatui::{prelude::*, text::ToLine, widgets::RatatuiMascot};
 use uefi::prelude::*;
-
-mod backend;
-
-use crate::backend::UefiBackend;
 
 #[entry]
 fn main() -> Status {

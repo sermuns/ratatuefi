@@ -1,14 +1,25 @@
 [package]
 name = "ratatuefi"
 version = "0.1.0"
+edition.workspace = true
+
+[workspace]
+resolver = "3"
+members = ["examples/*"]
+
+[workspace.package]
 edition = "2024"
 
-[dependencies]
-log = "0.4"
+[workspace.dependencies]
+ratatuefi.path = "."
 ratatui = {
   version = "0.30",
   default-features = false,
 }
+
+[dependencies]
+log = "0.4"
+ratatui-core = "0.1"
 thiserror = { version = "2", default-features = false }
 uefi = {
   version = "0.38",

@@ -1,0 +1,10 @@
+[package]
+name = "bloat-free"
+edition.workspace = true
+publish = false
+
+[dependencies]
+log = "0.4"
+ratatuefi.workspace = true
+ratatui.workspace = true
+uefi = "0.38"
