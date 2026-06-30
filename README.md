@@ -3,9 +3,9 @@
 ![ratatuefi](./media/banner.svg)
 _Zero-bloat Ratatui in UEFI, no OS_
 
-https://github.com/user-attachments/assets/338462fb-39e2-458e-b789-f591abd682b3
+<https://github.com/user-attachments/assets/338462fb-39e2-458e-b789-f591abd682b3>
 
-https://github.com/user-attachments/assets/9c12cd86-6aef-4f9b-9006-e8e9d527dcc2
+<https://github.com/user-attachments/assets/9c12cd86-6aef-4f9b-9006-e8e9d527dcc2>
 
 </div>
 
