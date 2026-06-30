@@ -1,0 +1,10 @@
+[package]
+name = "keyboard-input"
+edition.workspace = true
+publish = false
+
+[dependencies]
+log.workspace = true
+ratatuefi.workspace = true
+ratatui.workspace = true
+uefi.workspace = true
