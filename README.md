@@ -17,10 +17,10 @@ _Zero-bloat Ratatui in UEFI, no OS_
     pacman -S qemu-system-x86_64 edk2-ovmf
     ```
 
-   (optionally, install some graphics backend, but you can also VNC into the VM)
+   (optionally, install some graphics backend (recommend sdl+opengl), but you can also VNC into the VM)
 
     ```sh
-    pacman -S qemu-ui-sdl
+    pacman -S qemu-ui-sdl qemu-ui-opengl
     ```
 
 2. Create virtual EFI layout
