@@ -1,0 +1,10 @@
+[package]
+name = "isomux"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+log.workspace = true
+ratatuefi.workspace = true
+ratatui.workspace = true
+uefi.workspace = true
