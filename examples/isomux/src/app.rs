@@ -1,23 +1,20 @@
+use alloc::string::ToString;
+use log::info;
 use ratatuefi::UefiBackend;
 use ratatui::prelude::*;
+use ratatui::widgets::{Block, Clear};
 use uefi::prelude::*;
 use uefi::proto::console::text::{Input, Key, Output};
+use uefi::proto::device_path::DevicePath;
 
 pub struct App<'a> {
     quit: bool,
     input: &'a mut Input,
-    terminal: Terminal<UefiBackend<'a>>,
 }
 
 impl<'a> App<'a> {
-    pub fn new(input: &'a mut Input, output: &'a mut Output) -> Self {
-        let backend = UefiBackend::new(output);
-        let terminal = Terminal::new(backend).unwrap();
-        Self {
-            quit: false,
-            input,
-            terminal,
-        }
+    pub fn new(input: &'a mut Input) -> Self {
+        Self { quit: false, input }
     }
 
     fn handle_keystroke(&mut self) {
@@ -34,12 +31,26 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, mut terminal: Terminal<UefiBackend>) {
         let events_to_wait_for = &mut [self.input.wait_for_key_event().unwrap()];
 
         while !self.quit {
+            terminal.draw(|frame| self.draw(frame)).unwrap();
             boot::wait_for_event(events_to_wait_for).unwrap();
             self.handle_keystroke();
+        }
+    }
+
+    fn draw(&mut self, frame: &mut Frame) {
+        let area = Rect {
+            height: frame.area().height - 1,
+            ..frame.area()
+        };
+        frame.render_widget(Clear, area);
+        frame.render_widget(Block::bordered(), area);
+        let handles = uefi::boot::find_handles::<DevicePath>().unwrap();
+        for handle in handles {
+            info!("{}", handle.device_path().unwrap());
         }
     }
 }

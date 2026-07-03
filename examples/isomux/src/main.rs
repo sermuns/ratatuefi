@@ -3,6 +3,8 @@
 
 extern crate alloc;
 
+use ratatuefi::UefiBackend;
+use ratatui::Terminal;
 use uefi::prelude::*;
 
 mod app;
@@ -15,9 +17,10 @@ fn main() -> Status {
 
     system::with_stdout(|output| {
         system::with_stdin(|input| {
-            output.reset(false).unwrap();
-            let mut app = App::new(input, output);
-            app.run();
+            output.clear().unwrap();
+            let mut app = App::new(input);
+            let terminal = Terminal::new(UefiBackend::new(output)).unwrap();
+            app.run(terminal);
         })
     });
 
