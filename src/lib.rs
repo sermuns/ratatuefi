@@ -2,7 +2,6 @@
 
 use core::fmt::Write;
 
-use log::info;
 use ratatui_core::{
     backend::{self, Backend, ClearType, WindowSize},
     buffer,
