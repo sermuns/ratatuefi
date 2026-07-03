@@ -1,5 +1,5 @@
 [package]
-name = "isomux"
+name = "efimux"
 version = "0.1.0"
 edition.workspace = true
 
