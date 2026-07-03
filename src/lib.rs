@@ -41,7 +41,7 @@ fn ratatui_fg_color_to_uefi_color(color: Color) -> UefiColor {
         Color::DarkGray => UefiColor::DarkGray,
         Color::LightRed => UefiColor::LightRed,
         Color::LightGreen => UefiColor::LightGreen,
-        // Color::LightYellow => UefiColor::LightYellow,
+        Color::LightYellow => UefiColor::Brown,
         Color::LightBlue => UefiColor::LightBlue,
         Color::LightMagenta => UefiColor::LightMagenta,
         Color::LightCyan => UefiColor::LightCyan,
