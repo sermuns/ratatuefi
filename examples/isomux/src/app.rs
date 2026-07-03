@@ -1,17 +1,22 @@
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use log::info;
 use ratatuefi::UefiBackend;
 use ratatui::prelude::*;
-use ratatui::text::ToText;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Padding, Row, Table, TableState};
+use ratatui::text::{ToLine, ToText};
+use ratatui::widgets::{
+    Block, BorderType, Borders, Clear, Padding, Paragraph, Row, Table, TableState,
+};
 use uefi::boot::ScopedProtocol;
-use uefi::fs::FileSystem;
+use uefi::fs::{FileSystem, Path, PathBuf, SEPARATOR, SEPARATOR_STR};
 use uefi::proto::console::text::{Input, Key, Output, ScanCode};
 use uefi::proto::device_path::{DevicePath, LoadedImageDevicePath};
+use uefi::proto::media::file::{Directory, File, FileInfo};
 use uefi::proto::media::fs::SimpleFileSystem;
-use uefi::{Event, prelude::*, println};
+use uefi::{CStr16, CString16, Event, prelude::*, println};
 
 pub struct App<'a> {
     quit: bool,
@@ -22,7 +27,11 @@ pub struct App<'a> {
 
 enum FocusedBlock {
     DevicesTable(TableState),
-    Device { index: usize },
+    Device {
+        device_index: usize,
+        current_dir: PathBuf,
+        dir_table_state: TableState,
+    },
 }
 
 enum Action {
@@ -32,9 +41,10 @@ enum Action {
     Cancel,
 }
 
+#[derive(Debug)]
 struct DeviceWithFileSystem {
     path: ScopedProtocol<DevicePath>,
-    fs: ScopedProtocol<SimpleFileSystem>,
+    fs: FileSystem,
 }
 
 impl<'a> App<'a> {
@@ -56,9 +66,12 @@ impl<'a> App<'a> {
                 .unwrap()
                 .into_iter()
                 .filter_map(|handle| {
-                    let fs = boot::open_protocol_exclusive::<SimpleFileSystem>(handle).ok()?;
                     let path = handle.device_path().unwrap();
-                    Some(DeviceWithFileSystem { fs, path })
+                    let fs = boot::open_protocol_exclusive::<SimpleFileSystem>(handle).ok()?;
+                    Some(DeviceWithFileSystem {
+                        path,
+                        fs: FileSystem::new(fs),
+                    })
                 }),
         );
     }
@@ -93,19 +106,66 @@ impl<'a> App<'a> {
                 Action::MoveUp => table_state.select_previous(),
                 Action::MoveDown => table_state.select_next(),
                 Action::Confirm => {
+                    let device_index = table_state.selected().unwrap();
                     self.focused_block = FocusedBlock::Device {
-                        index: table_state.selected().unwrap(),
+                        device_index,
+                        // root
+                        current_dir: PathBuf::from(SEPARATOR_STR),
+                        dir_table_state: TableState::default().with_selected(0),
+                    };
+                }
+                _ => (),
+            },
+            FocusedBlock::Device {
+                device_index,
+                ref mut current_dir,
+                ref mut dir_table_state,
+                ..
+            } => {
+                let device = &mut self.filesystem_devices[device_index];
+                match action {
+                    Action::MoveUp => dir_table_state.select_previous(),
+                    Action::MoveDown => dir_table_state.select_next(),
+                    Action::Cancel => {
+                        if let Some(parent) = current_dir.parent() {
+                            *current_dir = parent;
+                        } else {
+                            self.focused_block =
+                                FocusedBlock::DevicesTable(TableState::new().with_selected(0));
+                        }
                     }
+                    Action::Confirm if let Some(entry_index) = dir_table_state.selected() => {
+                        let entry = device
+                            .fs
+                            .read_dir(&*current_dir)
+                            .unwrap()
+                            .nth(entry_index)
+                            .unwrap()
+                            .unwrap();
+                        if !entry.is_directory() {
+                            return;
+                        }
+
+                        let file_name = entry.file_name();
+                        if file_name == cstr16!(".") {
+                            return;
+                        }
+
+                        if current_dir.to_cstr16() == SEPARATOR_STR {
+                            *current_dir = file_name.try_into().unwrap();
+                        } else if file_name == cstr16!("..") {
+                            if let Some(parent) = current_dir.parent() {
+                                *current_dir = parent;
+                            } else {
+                                *current_dir = SEPARATOR_STR.into();
+                            }
+                        } else {
+                            current_dir.push(file_name);
+                        }
+                    }
+                    _ => (),
                 }
-                _ => (),
-            },
-            FocusedBlock::Device { index } => match action {
-                Action::Cancel => {
-                    self.focused_block =
-                        FocusedBlock::DevicesTable(TableState::new().with_selected(0))
-                }
-                _ => (),
-            },
+            }
         }
     }
 
@@ -134,15 +194,55 @@ impl<'a> App<'a> {
 
         match self.focused_block {
             FocusedBlock::DevicesTable(ref mut table_state) => {
+                let [heading_area, table_area] = area.layout(
+                    &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
+                );
+
+                frame.render_widget(
+                    format!(
+                        "Found {} devices with filesystems:",
+                        self.filesystem_devices.len()
+                    ),
+                    heading_area,
+                );
+
                 let rows = self
                     .filesystem_devices
                     .iter()
                     .map(|device| Row::new(device.path.to_text()));
-                let table = Table::new(rows, [Constraint::Fill(1)]).highlight_symbol(" ->");
+                let table =
+                    Table::new(rows, [Constraint::Fill(1)]).highlight_symbol("-> ".yellow());
 
-                frame.render_stateful_widget(table, area, table_state);
+                frame.render_stateful_widget(table, table_area, table_state);
             }
-            FocusedBlock::Device { index } => frame.render_widget(index.to_string(), area),
+            FocusedBlock::Device {
+                device_index,
+                ref current_dir,
+                ref mut dir_table_state,
+                ..
+            } => {
+                let [text_area, table_area] = area.layout(&Layout::vertical([
+                    Constraint::Length(5),
+                    Constraint::Fill(1),
+                ]));
+
+                frame.render_widget(current_dir.to_text(), text_area);
+
+                let device = &mut self.filesystem_devices[device_index];
+
+                let Ok(entries) = device.fs.read_dir(current_dir) else {
+                    return;
+                };
+
+                let rows = entries.map(|e| {
+                    let e = e.unwrap();
+                    Row::from_iter([e.file_size().to_string(), e.file_name().to_string()])
+                });
+
+                let widths = [Constraint::Length(10), Constraint::Fill(1)];
+                let table = Table::new(rows, widths).highlight_symbol("-> ".yellow());
+                frame.render_stateful_widget(table, table_area, dir_table_state);
+            }
         }
     }
 }
