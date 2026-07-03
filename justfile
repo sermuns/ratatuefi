@@ -5,7 +5,7 @@ create-virtual-uefi-layout:
     mkdir -p esp/efi/boot
 
 symlink package:
-    ln -sf /home/sermuns/.cache/cargo/x86_64-unknown-uefi/debug/{{ package }}.efi esp/efi/boot/bootx64.efi
+    ln -sf $CARGO_TARGET_DIR/x86_64-unknown-uefi/debug/{{ package }}.efi esp/efi/boot/bootx64.efi
 
 qemu:
     cargo build --workspace
