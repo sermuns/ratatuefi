@@ -2,8 +2,9 @@
 
 use core::fmt::Write;
 
+use log::info;
 use ratatui_core::{
-    backend::{self, Backend, WindowSize},
+    backend::{self, Backend, ClearType, WindowSize},
     buffer,
     layout::{Position, Size},
     style::Color,
@@ -29,7 +30,7 @@ fn ratatui_fg_color_to_uefi_color(color: Color) -> UefiColor {
     // TODO: very unfinished
     match color {
         Color::Reset => UefiColor::White,
-        Color::Black => UefiColor::White,
+        Color::Black => UefiColor::Black,
         Color::Red => UefiColor::Red,
         Color::Green => UefiColor::Green,
         Color::Yellow => UefiColor::Yellow,
@@ -56,6 +57,22 @@ fn ratatui_fg_color_to_uefi_color(color: Color) -> UefiColor {
     }
 }
 
+fn ratatui_bg_color_to_uefi_color(color: Color) -> UefiColor {
+    // TODO: very unfinished
+    match color {
+        Color::Reset => UefiColor::Black,
+        Color::Black => UefiColor::Black,
+        Color::Blue => UefiColor::Blue,
+        Color::Green => UefiColor::Green,
+        Color::Cyan => UefiColor::Cyan,
+        Color::Red => UefiColor::Red,
+        Color::Magenta => UefiColor::Magenta,
+        Color::Yellow => UefiColor::Yellow,
+        Color::Gray => UefiColor::LightGray,
+        other => panic!("encountered unsupported color {:?}", other),
+    }
+}
+
 impl Backend for UefiBackend<'_> {
     type Error = UefiBackendError;
 
@@ -78,8 +95,14 @@ impl Backend for UefiBackend<'_> {
         })
     }
 
-    fn clear_region(&mut self, _clear_type: backend::ClearType) -> Result<(), Self::Error> {
-        todo!()
+    fn clear_region(&mut self, clear_type: ClearType) -> Result<(), Self::Error> {
+        match clear_type {
+            ClearType::CurrentLine => todo!(),
+            ClearType::UntilNewLine => todo!(),
+            ClearType::BeforeCursor => todo!(),
+            ClearType::All => todo!(),
+            ClearType::AfterCursor => todo!(),
+        }
     }
 
     fn clear(&mut self) -> Result<(), Self::Error> {
@@ -113,10 +136,12 @@ impl Backend for UefiBackend<'_> {
             self.set_cursor_position((x, y)).unwrap();
 
             let foreground = ratatui_fg_color_to_uefi_color(cell.fg);
+
             // background only allowed to be one of the first 8 colors:
             // https://docs.rs/uefi/latest/uefi/proto/console/text/struct.Output.html#method.set_color
             // https://docs.rs/uefi/latest/uefi/proto/console/text/enum.Color.html
-            let background = UefiColor::Blue;
+            let background = ratatui_bg_color_to_uefi_color(cell.bg);
+
             self.output.set_color(foreground, background).unwrap();
 
             self.output.write_str(cell.symbol()).unwrap();
