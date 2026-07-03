@@ -1,22 +1,26 @@
-use alloc::borrow::ToOwned;
-use alloc::boxed::Box;
-use alloc::format;
-use alloc::string::ToString;
-use alloc::vec::Vec;
-use log::info;
+use alloc::{format, string::ToString, vec::Vec};
+use core::mem::MaybeUninit;
 use ratatuefi::UefiBackend;
-use ratatui::prelude::*;
-use ratatui::text::{ToLine, ToText};
-use ratatui::widgets::{
-    Block, BorderType, Borders, Clear, Padding, Paragraph, Row, Table, TableState,
+use ratatui::{
+    prelude::*,
+    text::ToText,
+    widgets::{Block, Padding, Row, Table, TableState},
 };
-use uefi::boot::ScopedProtocol;
-use uefi::fs::{FileSystem, Path, PathBuf, SEPARATOR, SEPARATOR_STR};
-use uefi::proto::console::text::{Input, Key, Output, ScanCode};
-use uefi::proto::device_path::{DevicePath, LoadedImageDevicePath};
-use uefi::proto::media::file::{Directory, File, FileInfo};
-use uefi::proto::media::fs::SimpleFileSystem;
-use uefi::{CStr16, CString16, Event, prelude::*, println};
+use uefi::{
+    CStr16, Event,
+    boot::{LoadImageSource, ScopedProtocol, image_handle, start_image},
+    fs::{FileSystem, PathBuf, SEPARATOR_STR},
+    prelude::*,
+    proto::{
+        BootPolicy,
+        console::text::{Input, Key, ScanCode},
+        device_path::{
+            DevicePath,
+            build::{self, DevicePathBuilder},
+        },
+        media::fs::SimpleFileSystem,
+    },
+};
 
 pub struct App<'a> {
     quit: bool,
@@ -34,11 +38,17 @@ enum FocusedBlock {
     },
 }
 
+fn is_efi_file(name: &CStr16) -> bool {
+    let slice = name.as_slice();
+    slice.ends_with(cstr16!(".efi").as_slice()) || slice.ends_with(cstr16!(".EFI").as_slice())
+}
+
 enum Action {
     MoveDown,
     MoveUp,
     Confirm,
     Cancel,
+    Refresh,
 }
 
 #[derive(Debug)]
@@ -82,13 +92,13 @@ impl<'a> App<'a> {
         let Ok(Some(keystroke)) = self.input.read_key() else {
             return;
         };
-        // println!("{:?}", keystroke);
 
         match keystroke {
             Key::Printable(c) => match c.into() {
                 'q' => self.quit = true,
                 'j' => self.perform_action(Action::MoveDown),
                 'k' => self.perform_action(Action::MoveUp),
+                'r' => self.perform_action(Action::Refresh),
                 '\r' | ' ' => self.perform_action(Action::Confirm),
                 '\u{8}' => self.perform_action(Action::Cancel),
                 _ => (),
@@ -105,15 +115,15 @@ impl<'a> App<'a> {
             FocusedBlock::DevicesTable(ref mut table_state) => match action {
                 Action::MoveUp => table_state.select_previous(),
                 Action::MoveDown => table_state.select_next(),
-                Action::Confirm => {
-                    let device_index = table_state.selected().unwrap();
+                Action::Confirm if let Some(device_index) = table_state.selected() => {
                     self.focused_block = FocusedBlock::Device {
                         device_index,
                         // root
-                        current_dir: PathBuf::from(SEPARATOR_STR),
+                        current_dir: SEPARATOR_STR.into(),
                         dir_table_state: TableState::default().with_selected(0),
                     };
                 }
+                Action::Refresh => self.refresh_filesystems(),
                 _ => (),
             },
             FocusedBlock::Device {
@@ -127,11 +137,13 @@ impl<'a> App<'a> {
                     Action::MoveUp => dir_table_state.select_previous(),
                     Action::MoveDown => dir_table_state.select_next(),
                     Action::Cancel => {
-                        if let Some(parent) = current_dir.parent() {
-                            *current_dir = parent;
-                        } else {
+                        if current_dir.to_cstr16() == SEPARATOR_STR {
                             self.focused_block =
                                 FocusedBlock::DevicesTable(TableState::new().with_selected(0));
+                        } else if let Some(parent) = current_dir.parent() {
+                            *current_dir = parent;
+                        } else {
+                            *current_dir = SEPARATOR_STR.into();
                         }
                     }
                     Action::Confirm if let Some(entry_index) = dir_table_state.selected() => {
@@ -142,25 +154,54 @@ impl<'a> App<'a> {
                             .nth(entry_index)
                             .unwrap()
                             .unwrap();
-                        if !entry.is_directory() {
-                            return;
-                        }
 
                         let file_name = entry.file_name();
-                        if file_name == cstr16!(".") {
-                            return;
-                        }
-
-                        if current_dir.to_cstr16() == SEPARATOR_STR {
-                            *current_dir = file_name.try_into().unwrap();
-                        } else if file_name == cstr16!("..") {
-                            if let Some(parent) = current_dir.parent() {
-                                *current_dir = parent;
-                            } else {
-                                *current_dir = SEPARATOR_STR.into();
+                        if entry.is_directory() {
+                            if file_name == cstr16!(".") {
+                                return;
                             }
-                        } else {
-                            current_dir.push(file_name);
+
+                            if current_dir.to_cstr16() == SEPARATOR_STR {
+                                *current_dir = file_name.try_into().unwrap();
+                            } else if file_name == cstr16!("..") {
+                                if let Some(parent) = current_dir.parent() {
+                                    *current_dir = parent;
+                                } else {
+                                    *current_dir = SEPARATOR_STR.into();
+                                }
+                            } else {
+                                current_dir.push(file_name);
+                            }
+                        } else if is_efi_file(file_name) {
+                            let file_path = if current_dir.to_cstr16() == SEPARATOR_STR {
+                                file_name.into()
+                            } else {
+                                current_dir.join(file_name)
+                            };
+
+                            let mut buf = [MaybeUninit::uninit(); 1024];
+                            let mut builder = DevicePathBuilder::with_buf(&mut buf);
+
+                            for node in device.path.node_iter() {
+                                builder = builder.push(&node).unwrap();
+                            }
+
+                            builder = builder
+                                .push(&build::media::FilePath {
+                                    path_name: file_path.to_cstr16(),
+                                })
+                                .unwrap();
+
+                            let image_handle = boot::load_image(
+                                image_handle(),
+                                LoadImageSource::FromDevicePath {
+                                    device_path: builder.finalize().unwrap(),
+                                    boot_policy: BootPolicy::ExactMatch,
+                                },
+                            )
+                            .unwrap();
+
+                            start_image(image_handle).unwrap();
                         }
                     }
                     _ => (),
@@ -221,25 +262,36 @@ impl<'a> App<'a> {
                 ref mut dir_table_state,
                 ..
             } => {
-                let [text_area, table_area] = area.layout(&Layout::vertical([
-                    Constraint::Length(5),
-                    Constraint::Fill(1),
-                ]));
+                let [text_area, table_area] = area.layout(
+                    &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
+                );
 
                 frame.render_widget(current_dir.to_text(), text_area);
 
                 let device = &mut self.filesystem_devices[device_index];
 
-                let Ok(entries) = device.fs.read_dir(current_dir) else {
-                    return;
-                };
+                let rows = device.fs.read_dir(current_dir).unwrap().map(|entry| {
+                    let e = entry.unwrap();
 
-                let rows = entries.map(|e| {
-                    let e = e.unwrap();
-                    Row::from_iter([e.file_size().to_string(), e.file_name().to_string()])
+                    let (is_efi_str, color) = if is_efi_file(e.file_name()) {
+                        ("*", Color::Yellow)
+                    } else {
+                        ("", Color::Reset)
+                    };
+
+                    Row::from_iter([
+                        is_efi_str.to_string(),
+                        e.file_size().to_string(),
+                        e.file_name().to_string(),
+                    ])
+                    .fg(color)
                 });
 
-                let widths = [Constraint::Length(10), Constraint::Fill(1)];
+                let widths = [
+                    Constraint::Length(1),
+                    Constraint::Length(8),
+                    Constraint::Fill(1),
+                ];
                 let table = Table::new(rows, widths).highlight_symbol("-> ".yellow());
                 frame.render_stateful_widget(table, table_area, dir_table_state);
             }
