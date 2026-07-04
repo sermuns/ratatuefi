@@ -8,6 +8,7 @@ use ratatui::Terminal;
 use uefi::prelude::*;
 
 mod app;
+mod focused_block;
 
 use crate::app::App;
 

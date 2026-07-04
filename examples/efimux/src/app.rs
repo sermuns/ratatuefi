@@ -22,7 +22,8 @@ use uefi::{
         media::fs::SimpleFileSystem,
     },
 };
-use unicode_consts::arrows::{DOWNWARDS_ARROW, UPWARDS_ARROW};
+
+use crate::focused_block::FocusedBlock;
 
 pub struct App<'a> {
     quit: bool,
@@ -31,16 +32,7 @@ pub struct App<'a> {
     focused_block: FocusedBlock,
 }
 
-enum FocusedBlock {
-    DevicesTable(TableState),
-    Device {
-        device_index: usize,
-        current_dir: PathBuf,
-        dir_table_state: TableState,
-    },
-}
-
-fn is_efi_file(name: &CStr16) -> bool {
+pub fn is_efi_file(name: &CStr16) -> bool {
     let slice = name.as_slice();
     slice.ends_with(cstr16!(".efi").as_slice()) || slice.ends_with(cstr16!(".EFI").as_slice())
 }
@@ -54,9 +46,9 @@ enum Action {
 }
 
 #[derive(Debug)]
-struct DeviceWithFileSystem {
-    path: ScopedProtocol<DevicePath>,
-    fs: FileSystem,
+pub struct DeviceWithFileSystem {
+    pub path: ScopedProtocol<DevicePath>,
+    pub fs: FileSystem,
 }
 
 impl<'a> App<'a> {
@@ -234,89 +226,8 @@ impl<'a> App<'a> {
             .border_style(Color::LightYellow);
         frame.render_widget(&block, outer_area);
 
-        let [content_area, help_area] = block.inner(outer_area).layout(&Layout::vertical([
-            Constraint::Fill(1),
-            Constraint::Length(2),
-        ]));
-
-        const UP_DOWN_HELP: &str = formatcp!("up: k/{UPWARDS_ARROW}, down: j/{DOWNWARDS_ARROW}");
-        let help_block = Block::new()
-            .borders(Borders::TOP)
-            .border_style(Color::DarkGray);
-        frame.render_widget(&help_block, help_area);
-        let help_area = help_block.inner(help_area);
-
-        match self.focused_block {
-            FocusedBlock::DevicesTable(ref mut table_state) => {
-                let [heading_area, table_area] = content_area.layout(
-                    &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
-                );
-
-                let num_devices = self.filesystem_devices.len();
-                frame.render_widget(
-                    format!(
-                        "Found {} device{} with filesystems:",
-                        num_devices,
-                        if num_devices == 1 { "" } else { "s" }
-                    ),
-                    heading_area,
-                );
-
-                let rows = self
-                    .filesystem_devices
-                    .iter()
-                    .map(|device| Row::new(device.path.to_text()));
-                let table =
-                    Table::new(rows, [Constraint::Fill(1)]).highlight_symbol("-> ".yellow());
-
-                frame.render_stateful_widget(table, table_area, table_state);
-
-                frame.render_widget(
-                    formatcp!(" explore device: ENTER/SPACE, {UP_DOWN_HELP} ")
-                        .to_line()
-                        .centered(),
-                    help_area,
-                );
-            }
-            FocusedBlock::Device {
-                device_index,
-                ref current_dir,
-                ref mut dir_table_state,
-                ..
-            } => {
-                let [text_area, table_area] = content_area.layout(
-                    &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
-                );
-
-                frame.render_widget(current_dir.to_text(), text_area);
-
-                let device = &mut self.filesystem_devices[device_index];
-
-                let rows = device.fs.read_dir(current_dir).unwrap().map(|entry| {
-                    let e = entry.unwrap();
-
-                    let (is_efi_str, color) = if is_efi_file(e.file_name()) {
-                        ("*", Color::Yellow)
-                    } else {
-                        ("", Color::Reset)
-                    };
-
-                    Row::from_iter([
-                        is_efi_str.to_string(),
-                        e.file_size().to_string(),
-                        e.file_name().to_string(),
-                    ])
-                    .fg(color)
-                });
-
-                let widths = [
-                    Constraint::Length(1),
-                    Constraint::Length(8),
-                    Constraint::Fill(1),
-                ];
-                let table = Table::new(rows, widths).highlight_symbol("-> ".yellow());
-                frame.render_stateful_widget(table, table_area, dir_table_state);
-            }
-        }
+        let area = block.inner(outer_area);
+        self.focused_block
+            .draw(frame, area, &mut self.filesystem_devices);
     }
 }
