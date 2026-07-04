@@ -63,11 +63,8 @@ mkfs.fat /path/to/disk_partition
 # Mount the partition.
 mount --mkdir /path/to/disk_partition /mnt/ratatuefi
 
-# Create the boot directory.
-mkdir -p /mnt/ratatuefi/EFI/BOOT
-
 # Copy in the boot executable.
-cp $CARGO_TARGET_DIR/x86_64-unknown-uefi/debug/ratatuefi.efi /mnt/ratatuefi/EFI/BOOT/BOOTX64.EFI
+cp -rL esp/efi /mnt/ratatuefi/
 
 # Eject the USB drive
 eject /path/to/disk
