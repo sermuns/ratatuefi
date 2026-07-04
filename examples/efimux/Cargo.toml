@@ -4,7 +4,9 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+const_format = "0.2"
 log.workspace = true
 ratatuefi.workspace = true
 ratatui.workspace = true
 uefi.workspace = true
+unicode-consts = "0.2"

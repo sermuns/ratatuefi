@@ -1,10 +1,11 @@
 use alloc::{format, string::ToString, vec::Vec};
+use const_format::formatcp;
 use core::mem::MaybeUninit;
 use ratatuefi::UefiBackend;
 use ratatui::{
     prelude::*,
-    text::ToText,
-    widgets::{Block, Padding, Row, Table, TableState},
+    text::{ToLine, ToText},
+    widgets::{Block, Borders, Padding, Row, Table, TableState},
 };
 use uefi::{
     CStr16, Event,
@@ -21,6 +22,7 @@ use uefi::{
         media::fs::SimpleFileSystem,
     },
 };
+use unicode_consts::arrows::{DOWNWARDS_ARROW, UPWARDS_ARROW};
 
 pub struct App<'a> {
     quit: bool,
@@ -229,13 +231,24 @@ impl<'a> App<'a> {
             .title(concat!(" ", env!("CARGO_PKG_NAME"), " "))
             .title_alignment(HorizontalAlignment::Center)
             .padding(Padding::proportional(1))
-            .border_style(Style::new().light_yellow());
-        let area = block.inner(outer_area);
-        frame.render_widget(block, outer_area);
+            .border_style(Color::LightYellow);
+        frame.render_widget(&block, outer_area);
+
+        let [content_area, help_area] = block.inner(outer_area).layout(&Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(2),
+        ]));
+
+        const UP_DOWN_HELP: &str = formatcp!("up: k/{UPWARDS_ARROW}, down: j/{DOWNWARDS_ARROW}");
+        let help_block = Block::new()
+            .borders(Borders::TOP)
+            .border_style(Color::DarkGray);
+        frame.render_widget(&help_block, help_area);
+        let help_area = help_block.inner(help_area);
 
         match self.focused_block {
             FocusedBlock::DevicesTable(ref mut table_state) => {
-                let [heading_area, table_area] = area.layout(
+                let [heading_area, table_area] = content_area.layout(
                     &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
                 );
 
@@ -257,6 +270,13 @@ impl<'a> App<'a> {
                     Table::new(rows, [Constraint::Fill(1)]).highlight_symbol("-> ".yellow());
 
                 frame.render_stateful_widget(table, table_area, table_state);
+
+                frame.render_widget(
+                    formatcp!(" explore device: ENTER/SPACE, {UP_DOWN_HELP} ")
+                        .to_line()
+                        .centered(),
+                    help_area,
+                );
             }
             FocusedBlock::Device {
                 device_index,
@@ -264,7 +284,7 @@ impl<'a> App<'a> {
                 ref mut dir_table_state,
                 ..
             } => {
-                let [text_area, table_area] = area.layout(
+                let [text_area, table_area] = content_area.layout(
                     &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
                 );
 
