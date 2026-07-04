@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Row, Table, TableState},
 };
 use uefi::fs::PathBuf;
-use unicode_consts::arrows::{DOWNWARDS_ARROW, UPWARDS_ARROW};
+use unicode_consts::arrows::{DOWNWARDS_ARROW, RIGHTWARDS_ARROW, UPWARDS_ARROW};
 
 use crate::app::{DeviceWithFileSystem, is_efi_file};
 
@@ -62,7 +62,7 @@ impl FocusedBlock {
                 frame.render_stateful_widget(table, table_area, table_state);
 
                 frame.render_widget(
-                    formatcp!(" explore device: ENTER/SPACE, {UP_DOWN_HELP} ")
+                    formatcp!(" enter device: ENTER/SPACE/l/{RIGHTWARDS_ARROW}, {UP_DOWN_HELP} ")
                         .to_line()
                         .centered(),
                     help_area,

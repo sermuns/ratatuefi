@@ -38,9 +38,11 @@ pub fn is_efi_file(name: &CStr16) -> bool {
 enum Action {
     MoveDown,
     MoveUp,
+    MoveRight,
     Confirm,
     Cancel,
     Refresh,
+    MoveLeft,
 }
 
 #[derive(Debug)]
@@ -88,15 +90,19 @@ impl<'a> App<'a> {
         match keystroke {
             Key::Printable(c) => match c.into() {
                 'q' => self.quit = true,
+                'h' => self.perform_action(Action::MoveLeft),
                 'j' => self.perform_action(Action::MoveDown),
                 'k' => self.perform_action(Action::MoveUp),
+                'l' => self.perform_action(Action::MoveRight),
                 'r' => self.perform_action(Action::Refresh),
                 '\r' | ' ' => self.perform_action(Action::Confirm),
                 '\u{8}' => self.perform_action(Action::Cancel),
                 _ => (),
             },
+            Key::Special(ScanCode::LEFT) => self.perform_action(Action::MoveLeft),
             Key::Special(ScanCode::DOWN) => self.perform_action(Action::MoveDown),
             Key::Special(ScanCode::UP) => self.perform_action(Action::MoveUp),
+            Key::Special(ScanCode::RIGHT) => self.perform_action(Action::MoveRight),
             Key::Special(ScanCode::ESCAPE) => self.perform_action(Action::Cancel),
             _ => (),
         }
@@ -107,7 +113,9 @@ impl<'a> App<'a> {
             FocusedBlock::DevicesTable(ref mut table_state) => match action {
                 Action::MoveUp => table_state.select_previous(),
                 Action::MoveDown => table_state.select_next(),
-                Action::Confirm if let Some(device_index) = table_state.selected() => {
+                Action::Confirm | Action::MoveRight
+                    if let Some(device_index) = table_state.selected() =>
+                {
                     self.focused_block = FocusedBlock::Device {
                         device_index,
                         // root
@@ -128,7 +136,7 @@ impl<'a> App<'a> {
                 match action {
                     Action::MoveUp => dir_table_state.select_previous(),
                     Action::MoveDown => dir_table_state.select_next(),
-                    Action::Cancel => {
+                    Action::Cancel | Action::MoveLeft => {
                         if current_dir.to_cstr16() == SEPARATOR_STR {
                             self.focused_block =
                                 FocusedBlock::DevicesTable(TableState::new().with_selected(0));
@@ -138,7 +146,9 @@ impl<'a> App<'a> {
                             *current_dir = SEPARATOR_STR.into();
                         }
                     }
-                    Action::Confirm if let Some(entry_index) = dir_table_state.selected() => {
+                    Action::Confirm | Action::MoveRight
+                        if let Some(entry_index) = dir_table_state.selected() =>
+                    {
                         let entry = device
                             .fs
                             .read_dir(&*current_dir)
