@@ -239,10 +239,12 @@ impl<'a> App<'a> {
                     &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
                 );
 
+                let num_devices = self.filesystem_devices.len();
                 frame.render_widget(
                     format!(
-                        "Found {} devices with filesystems:",
-                        self.filesystem_devices.len()
+                        "Found {} device{} with filesystems:",
+                        num_devices,
+                        if num_devices == 1 { "" } else { "s" }
                     ),
                     heading_area,
                 );
