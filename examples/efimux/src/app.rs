@@ -3,7 +3,8 @@ use core::mem::MaybeUninit;
 use ratatuefi::UefiBackend;
 use ratatui::{
     prelude::*,
-    widgets::{Block, Padding, TableState},
+    text::ToLine,
+    widgets::{Block, Clear, Padding, TableState},
 };
 use uefi::{
     CStr16, Event,
@@ -25,6 +26,7 @@ use crate::focused_block::FocusedBlock;
 
 pub struct App<'a> {
     quit: bool,
+    quit_confirmation: Option<bool>,
     input: &'a mut Input,
     filesystem_devices: Vec<DeviceWithFileSystem>,
     focused_block: FocusedBlock,
@@ -55,6 +57,7 @@ impl<'a> App<'a> {
     pub fn new(input: &'a mut Input) -> Self {
         let mut app = Self {
             quit: false,
+            quit_confirmation: None,
             input,
             filesystem_devices: Vec::new(),
             focused_block: FocusedBlock::DevicesTable(TableState::new().with_selected(0)),
@@ -89,7 +92,7 @@ impl<'a> App<'a> {
 
         match keystroke {
             Key::Printable(c) => match c.into() {
-                'q' => self.quit = true,
+                'q' => self.quit_confirmation = Some(false),
                 'h' => self.perform_action(Action::MoveLeft),
                 'j' => self.perform_action(Action::MoveDown),
                 'k' => self.perform_action(Action::MoveUp),
@@ -109,6 +112,17 @@ impl<'a> App<'a> {
     }
 
     fn perform_action(&mut self, action: Action) {
+        if let Some(do_quit) = &mut self.quit_confirmation {
+            match action {
+                Action::Cancel => self.quit_confirmation = None,
+                Action::Confirm if *do_quit => self.quit = true,
+                Action::Confirm => self.quit_confirmation = None,
+                Action::MoveRight | Action::MoveLeft => *do_quit = !*do_quit,
+                _ => (),
+            }
+            return;
+        }
+
         match self.focused_block {
             FocusedBlock::DevicesTable(ref mut table_state) => match action {
                 Action::MoveUp => table_state.select_previous(),
@@ -237,5 +251,31 @@ impl<'a> App<'a> {
         let area = block.inner(outer_area);
         self.focused_block
             .draw(frame, area, &mut self.filesystem_devices);
+
+        if let Some(do_quit) = self.quit_confirmation {
+            let centered_area = area.centered(Constraint::Length(40), Constraint::Length(10));
+            frame.render_widget(Clear, centered_area);
+
+            let popup_block = Block::bordered()
+                .border_style(Color::Red)
+                .title("Do you really want to quit?");
+            frame.render_widget(&popup_block, centered_area);
+
+            let choices_area = popup_block
+                .inner(centered_area)
+                .centered_vertically(Constraint::Length(1));
+
+            let [no_area, yes_area] =
+                choices_area.layout(&Layout::horizontal([Constraint::Fill(1); 2]));
+            let no = "No".to_line().centered();
+            let yes = "Yes".to_line().centered();
+            if do_quit {
+                frame.render_widget(no.dark_gray(), no_area);
+                frame.render_widget(yes, yes_area);
+            } else {
+                frame.render_widget(no, no_area);
+                frame.render_widget(yes.dark_gray(), yes_area);
+            }
+        }
     }
 }
