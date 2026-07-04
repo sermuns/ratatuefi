@@ -1,16 +1,14 @@
-use alloc::{format, string::ToString, vec::Vec};
-use const_format::formatcp;
+use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 use ratatuefi::UefiBackend;
 use ratatui::{
     prelude::*,
-    text::{ToLine, ToText},
-    widgets::{Block, Borders, Padding, Row, Table, TableState},
+    widgets::{Block, Padding, TableState},
 };
 use uefi::{
     CStr16, Event,
     boot::{LoadImageSource, ScopedProtocol, image_handle, start_image},
-    fs::{FileSystem, PathBuf, SEPARATOR_STR},
+    fs::{FileSystem, SEPARATOR_STR},
     prelude::*,
     proto::{
         BootPolicy,
