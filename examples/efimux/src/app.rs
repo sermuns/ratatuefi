@@ -1,5 +1,4 @@
 use alloc::{collections::vec_deque::VecDeque, vec::Vec};
-use core::mem::MaybeUninit;
 use ratatuefi::UefiBackend;
 use ratatui::{
     prelude::*,
@@ -11,7 +10,6 @@ use uefi::{
     boot::{LoadImageSource, ScopedProtocol, image_handle, start_image},
     fs::{FileSystem, Path, PathBuf, SEPARATOR_STR},
     prelude::*,
-    println,
     proto::{
         BootPolicy,
         console::text::{Input, Key, ScanCode},
@@ -178,7 +176,7 @@ impl<'a> App<'a> {
                 Action::Cancel => self.quit_confirmation = None,
                 Action::Confirm if *do_quit => self.quit = true,
                 Action::Confirm => self.quit_confirmation = None,
-                Action::MoveRight | Action::MoveLeft => *do_quit = !*do_quit,
+                Action::MoveRight | Action::MoveLeft | Action::Tab => *do_quit = !*do_quit,
                 _ => (),
             }
             return;
