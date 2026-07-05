@@ -1,8 +1,8 @@
-use alloc::{format, string::ToString};
+use alloc::{format, string::ToString, vec::Vec};
 use const_format::formatcp;
 use ratatui::{
     prelude::*,
-    text::{ToLine, ToText},
+    text::ToText,
     widgets::{Block, Borders, Row, Table, TableState},
 };
 use uefi::fs::PathBuf;
@@ -12,10 +12,15 @@ use crate::app::{DeviceWithFileSystem, is_efi_file};
 
 pub enum FocusedBlock {
     DevicesTable(TableState),
-    Device {
+    FullFileSystem {
         device_index: usize,
+        table_state: TableState,
         current_dir: PathBuf,
-        dir_table_state: TableState,
+    },
+    DiscoveredEfiFiles {
+        device_index: usize,
+        table_state: TableState,
+        efi_entries: Vec<PathBuf>,
     },
 }
 
@@ -30,6 +35,10 @@ impl FocusedBlock {
             Constraint::Fill(1),
             Constraint::Length(2),
         ]));
+
+        const EFI_ENTRIES_STR: &str = "only discovered .efi entries";
+        const FILESYSTEM_STR: &str = "full file system";
+        const TAB_INSTRUCTIONS: &str = "(press TAB to toggle)";
 
         const UP_DOWN_HELP: &str = formatcp!("up: k/{UPWARDS_ARROW}, down: j/{DOWNWARDS_ARROW}");
         let help_block = Block::new()
@@ -66,17 +75,27 @@ impl FocusedBlock {
                     help_area,
                 );
             }
-            FocusedBlock::Device {
+            FocusedBlock::FullFileSystem {
                 device_index,
                 current_dir,
-                dir_table_state,
+                table_state: dir_table_state,
                 ..
             } => {
-                let [text_area, table_area] = content_area.layout(
-                    &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
+                let [tab_area, path_area, table_area] = content_area.layout(
+                    &Layout::vertical([
+                        Constraint::Length(1),
+                        Constraint::Length(1),
+                        Constraint::Fill(1),
+                    ])
+                    .spacing(1),
                 );
 
-                frame.render_widget(current_dir.to_text(), text_area);
+                frame.render_widget(
+                    formatcp!(" {EFI_ENTRIES_STR}  or <{FILESYSTEM_STR}> {TAB_INSTRUCTIONS}"),
+                    tab_area,
+                );
+
+                frame.render_widget(current_dir.to_text(), path_area);
 
                 let device = &mut filesystem_devices[*device_index];
 
@@ -133,6 +152,36 @@ impl FocusedBlock {
                         help_area,
                     );
                 }
+            }
+            FocusedBlock::DiscoveredEfiFiles {
+                table_state,
+                efi_entries,
+                ..
+            } => {
+                let [tab_area, table_area] = content_area.layout(
+                    &Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1),
+                );
+
+                frame.render_widget(
+                    formatcp!("<{EFI_ENTRIES_STR}> or  {FILESYSTEM_STR}  {TAB_INSTRUCTIONS}"),
+                    tab_area,
+                );
+
+                let rows = efi_entries
+                    .iter()
+                    .map(|e| Row::from_iter(["*".into(), e.to_text()]).yellow());
+
+                let widths = [Constraint::Length(1), Constraint::Fill(1)];
+                let table = Table::new(rows, widths).highlight_symbol("-> ".yellow());
+                frame.render_stateful_widget(table, table_area, table_state);
+
+                const STEP_UP_HELP: &str = formatcp!("step up: ESC/BACKSPACE/h/{LEFTWARDS_ARROW}");
+                frame.render_widget(
+                    formatcp!(
+                        " boot: ENTER/SPACE/l/{RIGHTWARDS_ARROW}, {STEP_UP_HELP}, {UP_DOWN_HELP} "
+                    ),
+                    help_area,
+                );
             }
         }
     }

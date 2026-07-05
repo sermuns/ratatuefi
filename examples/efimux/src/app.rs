@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{collections::vec_deque::VecDeque, vec::Vec};
 use core::mem::MaybeUninit;
 use ratatuefi::UefiBackend;
 use ratatui::{
@@ -9,8 +9,9 @@ use ratatui::{
 use uefi::{
     CStr16, Event,
     boot::{LoadImageSource, ScopedProtocol, image_handle, start_image},
-    fs::{FileSystem, SEPARATOR_STR},
+    fs::{FileSystem, Path, PathBuf, SEPARATOR_STR},
     prelude::*,
+    println,
     proto::{
         BootPolicy,
         console::text::{Input, Key, ScanCode},
@@ -45,12 +46,41 @@ enum Action {
     Cancel,
     Refresh,
     MoveLeft,
+    Tab,
 }
 
 #[derive(Debug)]
 pub struct DeviceWithFileSystem {
     pub path: ScopedProtocol<DevicePath>,
     pub fs: FileSystem,
+}
+
+impl DeviceWithFileSystem {
+    fn start_image_from_file_path(&self, file_path: &Path) {
+        let mut buf = Vec::new();
+        let mut builder = DevicePathBuilder::with_vec(&mut buf);
+
+        for node in self.path.node_iter() {
+            builder = builder.push(&node).unwrap();
+        }
+
+        builder = builder
+            .push(&build::media::FilePath {
+                path_name: file_path.to_cstr16(),
+            })
+            .unwrap();
+
+        let image_handle = boot::load_image(
+            image_handle(),
+            LoadImageSource::FromDevicePath {
+                device_path: builder.finalize().unwrap(),
+                boot_policy: BootPolicy::ExactMatch,
+            },
+        )
+        .unwrap();
+
+        start_image(image_handle).unwrap();
+    }
 }
 
 impl<'a> App<'a> {
@@ -99,6 +129,8 @@ impl<'a> App<'a> {
                 'l' => self.perform_action(Action::MoveRight),
                 'r' => self.perform_action(Action::Refresh),
                 '\r' | ' ' => self.perform_action(Action::Confirm),
+                '\t' => self.perform_action(Action::Tab),
+                // BACKSPACE
                 '\u{8}' => self.perform_action(Action::Cancel),
                 _ => (),
             },
@@ -109,6 +141,35 @@ impl<'a> App<'a> {
             Key::Special(ScanCode::ESCAPE) => self.perform_action(Action::Cancel),
             _ => (),
         }
+    }
+
+    fn find_all_efi_entries_in_device(&mut self, device_index: usize) -> Vec<PathBuf> {
+        let device = &mut self.filesystem_devices[device_index];
+        let mut efi_entries = Vec::new();
+
+        let mut queue = VecDeque::from_iter([PathBuf::from(SEPARATOR_STR)]);
+        while let Some(current_dir) = queue.pop_back() {
+            for entry in device.fs.read_dir(&current_dir).unwrap() {
+                let e = entry.unwrap();
+
+                if e.file_name() == cstr16!("..") || e.file_name() == cstr16!(".") {
+                    continue;
+                }
+
+                let entry_path = if current_dir.to_cstr16() == SEPARATOR_STR {
+                    e.file_name().into()
+                } else {
+                    current_dir.join(e.file_name())
+                };
+
+                if e.is_regular_file() && is_efi_file(e.file_name()) {
+                    efi_entries.push(entry_path);
+                } else if e.is_directory() {
+                    queue.push_front(entry_path);
+                }
+            }
+        }
+        efi_entries
     }
 
     fn perform_action(&mut self, action: Action) {
@@ -130,26 +191,24 @@ impl<'a> App<'a> {
                 Action::Confirm | Action::MoveRight
                     if let Some(device_index) = table_state.selected() =>
                 {
-                    self.focused_block = FocusedBlock::Device {
+                    self.focused_block = FocusedBlock::DiscoveredEfiFiles {
                         device_index,
-                        // root
-                        current_dir: SEPARATOR_STR.into(),
-                        dir_table_state: TableState::default().with_selected(0),
-                    };
+                        table_state: TableState::default().with_selected(0),
+                        efi_entries: self.find_all_efi_entries_in_device(device_index),
+                    }
                 }
                 Action::Refresh => self.refresh_filesystems(),
                 _ => (),
             },
-            FocusedBlock::Device {
+            FocusedBlock::FullFileSystem {
                 device_index,
                 ref mut current_dir,
-                ref mut dir_table_state,
-                ..
+                ref mut table_state,
             } => {
                 let device = &mut self.filesystem_devices[device_index];
                 match action {
-                    Action::MoveUp => dir_table_state.select_previous(),
-                    Action::MoveDown => dir_table_state.select_next(),
+                    Action::MoveUp => table_state.select_previous(),
+                    Action::MoveDown => table_state.select_next(),
                     Action::Cancel | Action::MoveLeft => {
                         if current_dir.to_cstr16() == SEPARATOR_STR {
                             self.focused_block =
@@ -160,8 +219,15 @@ impl<'a> App<'a> {
                             *current_dir = SEPARATOR_STR.into();
                         }
                     }
+                    Action::Tab => {
+                        self.focused_block = FocusedBlock::DiscoveredEfiFiles {
+                            device_index,
+                            table_state: TableState::default().with_selected(0),
+                            efi_entries: self.find_all_efi_entries_in_device(device_index),
+                        }
+                    }
                     Action::Confirm | Action::MoveRight
-                        if let Some(entry_index) = dir_table_state.selected() =>
+                        if let Some(entry_index) = table_state.selected() =>
                     {
                         let entry = device
                             .fs
@@ -178,7 +244,7 @@ impl<'a> App<'a> {
                             }
 
                             if current_dir.to_cstr16() == SEPARATOR_STR {
-                                *current_dir = file_name.try_into().unwrap();
+                                *current_dir = file_name.into();
                             } else if file_name == cstr16!("..") {
                                 if let Some(parent) = current_dir.parent() {
                                     *current_dir = parent;
@@ -195,31 +261,39 @@ impl<'a> App<'a> {
                                 current_dir.join(file_name)
                             };
 
-                            let mut buf = [MaybeUninit::uninit(); 1024];
-                            let mut builder = DevicePathBuilder::with_buf(&mut buf);
-
-                            for node in device.path.node_iter() {
-                                builder = builder.push(&node).unwrap();
-                            }
-
-                            builder = builder
-                                .push(&build::media::FilePath {
-                                    path_name: file_path.to_cstr16(),
-                                })
-                                .unwrap();
-
-                            let image_handle = boot::load_image(
-                                image_handle(),
-                                LoadImageSource::FromDevicePath {
-                                    device_path: builder.finalize().unwrap(),
-                                    boot_policy: BootPolicy::ExactMatch,
-                                },
-                            )
-                            .unwrap();
-
-                            start_image(image_handle).unwrap();
+                            device.start_image_from_file_path(&file_path);
                         }
                     }
+                    _ => (),
+                }
+            }
+            FocusedBlock::DiscoveredEfiFiles {
+                device_index,
+                ref efi_entries,
+                ref mut table_state,
+            } => {
+                let device = &mut self.filesystem_devices[device_index];
+                match action {
+                    Action::Tab => {
+                        self.focused_block = FocusedBlock::FullFileSystem {
+                            device_index,
+                            current_dir: SEPARATOR_STR.into(), // root
+                            table_state: TableState::default().with_selected(0),
+                        };
+                    }
+                    Action::Cancel | Action::MoveLeft => {
+                        self.focused_block =
+                            FocusedBlock::DevicesTable(TableState::new().with_selected(0));
+                    }
+
+                    Action::Confirm | Action::MoveRight
+                        if let Some(entry_index) = table_state.selected() =>
+                    {
+                        let efi_file_path = &efi_entries[entry_index];
+                        device.start_image_from_file_path(&efi_file_path);
+                    }
+                    Action::MoveDown => table_state.select_next(),
+                    Action::MoveUp => table_state.select_previous(),
                     _ => (),
                 }
             }
