@@ -2,3 +2,5 @@
 
 esp/
 *.fd
+
+Cargo.lock
