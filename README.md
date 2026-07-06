@@ -89,18 +89,4 @@ eject /path/to/disk
 > [!IMPORTANT]
 > disable secure boot on machine before trying to boot
 
-try booting it!
-
-## Ideas for improving
-
-<s>
-
-it is slow as hell to draw. could possibly be improved by
-
-- adding a buffer, and rendering full lines? currently we are rawdoggin character-for-character.
-- switching to manual VGA graphics (use mousefood?)
-
-</s>
-
-was fixed by using `-display sdl,gl=on`!
-somehow running without OpenGL makes it really slow!
+Now try booting the USB drive!
