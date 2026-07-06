@@ -1,6 +1,7 @@
 <div align="center">
 
 ![ratatuefi](./media/banner.svg)
+
 _Zero-bloat Ratatui in UEFI, no OS_
 
 <https://github.com/user-attachments/assets/338462fb-39e2-458e-b789-f591abd682b3>
@@ -8,6 +9,21 @@ _Zero-bloat Ratatui in UEFI, no OS_
 <https://github.com/user-attachments/assets/9c12cd86-6aef-4f9b-9006-e8e9d527dcc2>
 
 </div>
+
+## What is it?
+
+This library provides a (`no_std`) UEFI backend for [Ratatui] that is based on the [`uefi`] crate.
+
+Together with [`uefi`], you can create rich TUI's that run as EFI applications.
+
+[Ratatui]: https://github.com/ratatui/ratatui
+[`uefi`]: https://github.com/rust-osdev/uefi-rs
+
+## Examples
+
+- [`efimux`](https://github.com/sermuns/efimux) is an EFI application for booting other EFI applications, built on `ratatuefi`.
+
+Also check [`examples/`](./examples).
 
 ## Running in QEMU
 
