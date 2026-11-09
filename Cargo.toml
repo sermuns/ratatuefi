@@ -18,16 +18,10 @@ repository = "https://github.com/sermuns/ratatuefi"
 
 [workspace.dependencies]
 log = "0.4"
-ratatuefi.path = "."
-ratatui = {
-  version = "0.30",
-  default-features = false,
-}
-uefi = {
-  version = "0.38",
-  # TODO: maybe remove `qemu` for physical machines?
-  features = ["alloc", "global_allocator", "logger", "panic_handler", "qemu"]
-}
+ratatuefi = { path = "." }
+ratatui = { version = "0.30", default-features = false }
+# TODO: maybe remove `qemu` for physical machines?
+uefi = { version = "0.41", features = ["alloc", "global_allocator", "logger", "panic_handler", "qemu"] }
 
 [dependencies]
 log.workspace = true
